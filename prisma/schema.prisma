@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+}
+
+model Submission {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+  versions  SubmissionVersion[]
+  latestVersionId String?
+}
+
+model SubmissionVersion {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id])
+  versionNumber Int
+  code         String
+  isFinal      Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+}
+
+model MossRun {
+  id        String   @id @default(cuid())
+  projectId String
+  status    String   @default("QUEUED")
+  errorText String?
+  createdAt DateTime @default(now())
+  matches   MossMatch[]
+}
+
+model MossMatch {
+  id                  String   @id @default(cuid())
+  mossRunId           String
+  mossRun             MossRun  @relation(fields: [mossRunId], references: [id])
+  submissionVersionAId String
+  submissionVersionBId String
+  percentA            Float
+  percentB            Float
+  mossMatchUrl        String?
+  createdAt           DateTime @default(now())
+  segments            MossMatchSegment[]
+}
+
+model MossMatchSegment {
+  id          String    @id @default(cuid())
+  mossMatchId String
+  mossMatch   MossMatch @relation(fields: [mossMatchId], references: [id])
+  side        String
+  startLine   Int
+  endLine     Int
+}
