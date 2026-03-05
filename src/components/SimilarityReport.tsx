@@ -46,11 +46,14 @@ export default function SimilarityReport() {
 
   const matches = data.matches || [];
   const versions = data.versions || [];
-  const myCode = versions.length > 0 ? versions[0].code.split("\n") : ["// No code found"];
+
+  // Fix: normalize line endings and split properly
+  const rawCode = versions.length > 0 ? versions[0].code : "// No code found";
+  const myCode = rawCode.replace(/\\n/g, "\n").replace(/\r\n/g, "\n").split("\n");
   const TOTAL = myCode.length;
 
-  const overlapMap = new Array(TOTAL + 1).fill(0);
-  const perLine: string[][] = new Array(TOTAL + 1).fill(null).map(() => []);
+  const overlapMap = new Array(TOTAL + 2).fill(0);
+  const perLine: string[][] = new Array(TOTAL + 2).fill(null).map(() => []);
   matches.forEach((m: any) => {
     m.segments?.forEach((s: any) => {
       if (s.side === "A") {
@@ -74,13 +77,13 @@ export default function SimilarityReport() {
   })();
 
   const tips = [
-    { icon: "pencil", title: "Rename variables meaningfully", desc: "Replace generic names with descriptive ones." },
-    { icon: "cycle", title: "Restructure helper functions", desc: "Break methods into smaller, purpose-named helpers." },
-    { icon: "loop", title: "Change loop style", desc: "Swap indexed for-loops for enhanced for-loops." },
-    { icon: "chat", title: "Add your own comments", desc: "Explain WHY each step exists in your own words." },
-    { icon: "block", title: "Alter decomposition", desc: "Reorganize class layout and method groupings." },
-    { icon: "shield", title: "Handle edge cases differently", desc: "Add input validation that shows deep understanding." },
-    { icon: "derive", title: "Re-derive the algorithm", desc: "Close all references and rewrite from scratch." },
+    { title: "Rename variables meaningfully", desc: "Replace generic names with descriptive ones." },
+    { title: "Restructure helper functions", desc: "Break methods into smaller, purpose-named helpers." },
+    { title: "Change loop style", desc: "Swap indexed for-loops for enhanced for-loops." },
+    { title: "Add your own comments", desc: "Explain WHY each step exists in your own words." },
+    { title: "Alter decomposition", desc: "Reorganize class layout and method groupings." },
+    { title: "Handle edge cases differently", desc: "Add input validation that shows deep understanding." },
+    { title: "Re-derive the algorithm", desc: "Close all references and rewrite from scratch." },
   ];
 
   return (
@@ -99,7 +102,7 @@ export default function SimilarityReport() {
           <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px 24px", marginBottom: 20 }}>
             <div style={{ fontWeight: 700, fontSize: 15, color: "#f5f5f5", marginBottom: 16 }}>Summary</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-              {matches.map((m: any, i: number) => (
+              {matches.slice(0, 4).map((m: any, i: number) => (
                 <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#171717", border: `1px solid ${COLORS[i%4].border}33`, borderRadius: 8, padding: "6px 12px" }}>
                   <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS[i%4].border }} />
                   <span style={{ fontFamily: "monospace", fontSize: 12, color: "#a3a3a3" }}>#{m.submissionVersionBId.slice(0, 8)}</span>
@@ -111,14 +114,14 @@ export default function SimilarityReport() {
               <div style={{ fontSize: 11, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Total Matched Lines</div>
               <div style={{ fontSize: 28, fontWeight: 700, color: "#ef4444" }}>{totalMatched}<span style={{ fontSize: 14, color: "#52525b", fontWeight: 400, marginLeft: 6 }}>/ {TOTAL}</span></div>
               <div style={{ marginTop: 6, background: "#262626", borderRadius: 4, height: 4 }}>
-                <div style={{ width: `${Math.min((totalMatched/TOTAL)*100,100)}%`, height: "100%", background: "linear-gradient(90deg,#ef4444,#f97316)" }} />
+                <div style={{ width: `${Math.min((totalMatched/Math.max(TOTAL,1))*100,100)}%`, height: "100%", background: "linear-gradient(90deg,#ef4444,#f97316)" }} />
               </div>
             </div>
           </div>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             <button onClick={() => setFilter(null)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, cursor: "pointer", background: !filter ? "#1a1a1a" : "transparent", border: `1px solid ${!filter ? "#555" : "#2a2a2a"}`, color: !filter ? "#f5f5f5" : "#52525b" }}>All</button>
-            {matches.map((m: any, i: number) => (
+            {matches.slice(0, 4).map((m: any, i: number) => (
               <button key={m.id} onClick={() => setFilter(filter===m.id ? null : m.id)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, cursor: "pointer", background: filter===m.id ? COLORS[i%4].bg : "transparent", border: `1px solid ${filter===m.id ? COLORS[i%4].border : "#2a2a2a"}`, color: filter===m.id ? COLORS[i%4].text : "#52525b" }}>#{m.submissionVersionBId.slice(0,6)}</button>
             ))}
           </div>
@@ -171,7 +174,7 @@ export default function SimilarityReport() {
             {myCode.map((_:any, i:number) => {
               const l = i+1;
               const count = overlapMap[l];
-              return <div key={l} style={{ flex: 1, background: count>0 ? `rgba(239,68,68,${Math.min(count*0.4+0.2,1)})` : "transparent" }} />;
+              return <div key={l} style={{ flex: 1, minWidth: 2, background: count>0 ? `rgba(239,68,68,${Math.min(count*0.4+0.2,1)})` : "transparent" }} />;
             })}
           </div>
           <div style={{ fontFamily: "monospace", fontSize: 12, lineHeight: "1.7", background: "#080808", border: "1px solid #1e1e1e", borderRadius: 10, overflow: "auto", maxHeight: 600 }}>
