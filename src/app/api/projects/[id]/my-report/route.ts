@@ -40,31 +40,57 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const myVersionId = mySubmission.versions[0].id;
 
-    // Normalize all matches so MY code is always side A
+    // Get all submissions for this project to resolve user names
+    const allSubmissions = await prisma.submission.findMany({
+      where: { projectId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        versions: { orderBy: { versionNumber: "desc" }, take: 1 }
+      }
+    });
+
+    // Build map: versionId -> user info
+    const versionToUser: Record<string, { name: string; email: string }> = {};
+    for (const sub of allSubmissions) {
+      if (sub.versions[0]) {
+        versionToUser[sub.versions[0].id] = { name: sub.user.name, email: sub.user.email };
+      }
+    }
+
+    const REVEAL_THRESHOLD = 50; // reveal name if match >= 50%
+
     const myMatches = [];
     for (const match of latestRun.matches) {
       const iAmA = match.submissionVersionAId === myVersionId;
       const iAmB = match.submissionVersionBId === myVersionId;
       if (!iAmA && !iAmB) continue;
 
+      let normalized: any;
       if (iAmA) {
-        // Already correct orientation
-        myMatches.push(match);
+        normalized = { ...match };
       } else {
-        // I am side B — flip it so I become side A
-        const flipped = {
+        // Flip so I am always side A
+        normalized = {
           ...match,
           submissionVersionAId: match.submissionVersionBId,
           submissionVersionBId: match.submissionVersionAId,
           percentA: match.percentB,
           percentB: match.percentA,
-          segments: match.segments.map(s => ({
-            ...s,
-            side: s.side === "A" ? "B" : "A", // flip segment sides too
-          })),
+          segments: match.segments.map(s => ({ ...s, side: s.side === "A" ? "B" : "A" })),
         };
-        myMatches.push(flipped);
       }
+
+      // Reveal other user's name if match is high enough
+      const otherVersionId = normalized.submissionVersionBId;
+      const otherUser = versionToUser[otherVersionId];
+      const isHighMatch = normalized.percentA >= REVEAL_THRESHOLD;
+
+      normalized.revealedUser = isHighMatch && otherUser
+        ? { name: otherUser.name, email: otherUser.email }
+        : null;
+      normalized.isHighMatch = isHighMatch;
+
+      myMatches.push(normalized);
     }
 
     await prisma.$disconnect();

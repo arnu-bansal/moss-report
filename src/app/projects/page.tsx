@@ -63,14 +63,18 @@ export default function ProjectsPage() {
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: "#f5f5f5" }}>My Projects</div>
-            <div style={{ fontSize: 13, color: "#71717a", marginTop: 4 }}>Create a project, submit code, and run similarity checks.</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#f5f5f5" }}>Projects</div>
+            <div style={{ fontSize: 13, color: "#71717a", marginTop: 4 }}>
+              {isAdmin ? "Manage projects and check submissions." : "Submit your code and check similarity reports."}
+            </div>
           </div>
-          <button onClick={() => setCreating(true)}
-            style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#ef4444,#f97316)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ New Project</button>
+          {isAdmin && (
+            <button onClick={() => setCreating(true)}
+              style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#ef4444,#f97316)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ New Project</button>
+          )}
         </div>
 
-        {creating && (
+        {isAdmin && creating && (
           <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "24px", marginBottom: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#f5f5f5", marginBottom: 16 }}>New Project</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
@@ -98,8 +102,7 @@ export default function ProjectsPage() {
 
         {projects.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0", color: "#52525b" }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>[ ]</div>
-            <div>No projects yet. Create one to get started!</div>
+            <div style={{ fontSize: 13 }}>No projects yet. Ask your instructor to create one.</div>
           </div>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>

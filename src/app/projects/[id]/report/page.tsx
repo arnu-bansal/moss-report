@@ -110,7 +110,7 @@ export default function ReportPage() {
         <div>
           {matches.length === 0 ? (
             <div style={{ background: "#0a0f0a", border: "1px solid #16a34a44", borderRadius: 12, padding: "24px", textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
+              <div style={{ fontSize: 28, marginBottom: 8, color: "#86efac" }}>✓</div>
               <div style={{ fontSize: 14, color: "#86efac", fontWeight: 700, marginBottom: 4 }}>No matches found!</div>
               <div style={{ fontSize: 12, color: "#4a7c59" }}>Your code appears original.</div>
             </div>
@@ -121,7 +121,9 @@ export default function ReportPage() {
                 {matches.slice(0, 4).map((m: any, i: number) => (
                   <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#171717", border: "1px solid " + COLORS[i%4].border + "33", borderRadius: 8, padding: "6px 12px" }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS[i%4].border, display: "inline-block" }} />
-                    <span style={{ fontFamily: "monospace", fontSize: 12, color: "#a3a3a3" }}>#{m.submissionVersionBId.slice(0, 8)}</span>
+                    <span style={{ fontFamily: "monospace", fontSize: 12, color: "#a3a3a3" }}>
+                      {m.revealedUser ? m.revealedUser.name : "#" + m.submissionVersionBId.slice(0, 8)}
+                    </span>
                     <span style={{ fontSize: 12, color: COLORS[i%4].text, fontWeight: 700 }}>{m.percentA}%</span>
                   </div>
                 ))}
@@ -139,24 +141,38 @@ export default function ReportPage() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             <button onClick={() => setFilter(null)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, cursor: "pointer", background: !filter ? "#1a1a1a" : "transparent", border: "1px solid " + (!filter ? "#555" : "#2a2a2a"), color: !filter ? "#f5f5f5" : "#52525b" }}>All</button>
             {matches.slice(0, 4).map((m: any, i: number) => (
-              <button key={m.id} onClick={() => setFilter(filter===m.id ? null : m.id)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, cursor: "pointer", background: filter===m.id ? COLORS[i%4].bg : "transparent", border: "1px solid " + (filter===m.id ? COLORS[i%4].border : "#2a2a2a"), color: filter===m.id ? COLORS[i%4].text : "#52525b" }}>#{m.submissionVersionBId.slice(0,6)}</button>
+              <button key={m.id} onClick={() => setFilter(filter===m.id ? null : m.id)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, cursor: "pointer", background: filter===m.id ? COLORS[i%4].bg : "transparent", border: "1px solid " + (filter===m.id ? COLORS[i%4].border : "#2a2a2a"), color: filter===m.id ? COLORS[i%4].text : "#52525b" }}>
+                {m.revealedUser ? m.revealedUser.name.split(" ")[0] : "#" + m.submissionVersionBId.slice(0,6)}
+              </button>
             ))}
           </div>
 
           <div style={{ marginBottom: 20 }}>
             {matches.map((m: any, i: number) => (
-              <div key={m.id} style={{ background: "#0f0f0f", border: "1px solid " + COLORS[i%4].border + "44", borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
+              <div key={m.id} style={{ background: "#0f0f0f", border: "1px solid " + (m.isHighMatch ? "#ef444466" : COLORS[i%4].border + "44"), borderRadius: 10, marginBottom: 10, overflow: "hidden" }}>
                 <div onClick={() => setExpanded(expanded===m.id ? null : m.id)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", cursor: "pointer" }}>
                   <span style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS[i%4].border, display: "inline-block" }} />
-                  <span style={{ fontFamily: "monospace", fontSize: 13, color: "#d4d4d4" }}>User #{m.submissionVersionBId.slice(0,8)}</span>
+                  <div>
+                    <div style={{ fontFamily: m.revealedUser ? "system-ui" : "monospace", fontSize: 13, color: m.revealedUser ? "#f5f5f5" : "#d4d4d4", fontWeight: m.revealedUser ? 700 : 400 }}>
+                      {m.revealedUser ? m.revealedUser.name : "User #" + m.submissionVersionBId.slice(0,8)}
+                    </div>
+                    {m.revealedUser && (
+                      <div style={{ fontSize: 11, color: "#ef4444", marginTop: 2 }}>High similarity — identity revealed</div>
+                    )}
+                  </div>
                   <div style={{ marginLeft: "auto", display: "flex", gap: 16, alignItems: "center" }}>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontSize: 10, color: "#52525b" }}>My code</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: COLORS[i%4].text }}>{m.percentA}%</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: m.isHighMatch ? "#ef4444" : COLORS[i%4].text }}>{m.percentA}%</div>
                     </div>
                     <span style={{ color: "#52525b" }}>{expanded===m.id ? "v" : ">"}</span>
                   </div>
                 </div>
+                {m.isHighMatch && (
+                  <div style={{ padding: "8px 18px", background: "#1a0a0a", borderTop: "1px solid #ef444422", fontSize: 11, color: "#fca5a5" }}>
+                    Similarity above 50% — this match has been flagged and both students can see each other's names.
+                  </div>
+                )}
                 {expanded===m.id && (
                   <div style={{ padding: "0 18px 14px", borderTop: "1px solid #1e1e1e" }}>
                     {(m.segments||[]).filter((s:any)=>s.side==="A").map((seg:any)=>(
