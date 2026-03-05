@@ -1,6 +1,7 @@
 ﻿"use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 const COLORS = [
   { bg: "rgba(239,68,68,0.18)", border: "#ef4444", text: "#fca5a5" },
@@ -12,6 +13,7 @@ const COLORS = [
 export default function ReportPage() {
   const params = useParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const projectId = params.id as string;
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -23,12 +25,14 @@ export default function ReportPage() {
   const lineRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   useEffect(() => {
-    if (!projectId) return;
-    fetch("/api/projects/" + projectId + "/my-report")
+    if (!projectId || !session) return;
+    const userId = (session?.user as any)?.id;
+    if (!userId) return;
+    fetch("/api/projects/" + projectId + "/my-report?userId=" + userId)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [projectId]);
+  }, [projectId, session]);
 
   useEffect(() => {
     if (scrollTo && lineRefs.current[scrollTo]) {
@@ -44,7 +48,7 @@ export default function ReportPage() {
 
   if (!data || data.error) return (
     <div style={{ minHeight: "100vh", background: "#050505", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
-      <div style={{ color: "#ef4444" }}>No completed MOSS report yet.</div>
+      <div style={{ color: "#ef4444" }}>{data?.error || "No report found."}</div>
       <div style={{ fontSize: 12, color: "#52525b" }}>Submit code and run MOSS first.</div>
       <button onClick={() => router.back()} style={{ marginTop: 8, fontSize: 12, padding: "6px 16px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Go Back</button>
     </div>
@@ -88,7 +92,7 @@ export default function ReportPage() {
     { title: "Add your own comments", desc: "Explain WHY each step exists." },
     { title: "Alter decomposition", desc: "Reorganize class layout and method groupings." },
     { title: "Handle edge cases differently", desc: "Add input validation." },
-    { title: "Re-derive the algorithm", desc: "Rewrite from scratch using only your understanding." },
+    { title: "Re-derive the algorithm", desc: "Rewrite from scratch." },
   ];
 
   return (
@@ -97,32 +101,40 @@ export default function ReportPage() {
         <div style={{ width: 28, height: 28, borderRadius: 6, background: "linear-gradient(135deg,#ef4444,#f97316)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>C</div>
         <span style={{ fontWeight: 700, fontSize: 15, color: "#f5f5f5", cursor: "pointer" }} onClick={() => router.push("/projects")}>CodeScan</span>
         <span style={{ color: "#3f3f46" }}>/</span>
-        <span style={{ fontSize: 13, color: "#71717a" }}>Similarity Report</span>
+        <span style={{ fontSize: 13, color: "#71717a" }}>My Similarity Report</span>
         <span style={{ marginLeft: "auto", fontSize: 11, color: "#52525b" }}>Run: {new Date(data.createdAt).toLocaleString()}</span>
         <button onClick={() => router.back()} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Back</button>
       </div>
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "24px 20px", display: "grid", gridTemplateColumns: "340px 1fr", gap: 20 }}>
         <div>
-          <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px 24px", marginBottom: 20 }}>
-            <div style={{ fontWeight: 700, fontSize: 15, color: "#f5f5f5", marginBottom: 16 }}>Summary</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-              {matches.slice(0, 4).map((m: any, i: number) => (
-                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#171717", border: "1px solid " + COLORS[i%4].border + "33", borderRadius: 8, padding: "6px 12px" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS[i%4].border, display: "inline-block" }} />
-                  <span style={{ fontFamily: "monospace", fontSize: 12, color: "#a3a3a3" }}>#{m.submissionVersionBId.slice(0, 8)}</span>
-                  <span style={{ fontSize: 12, color: COLORS[i%4].text, fontWeight: 700 }}>{m.percentA}%</span>
-                </div>
-              ))}
+          {matches.length === 0 ? (
+            <div style={{ background: "#0a0f0a", border: "1px solid #16a34a44", borderRadius: 12, padding: "24px", textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 24, marginBottom: 8 }}>✓</div>
+              <div style={{ fontSize: 14, color: "#86efac", fontWeight: 700, marginBottom: 4 }}>No matches found!</div>
+              <div style={{ fontSize: 12, color: "#4a7c59" }}>Your code appears original.</div>
             </div>
-            <div style={{ background: "#171717", borderRadius: 8, padding: "14px 16px" }}>
-              <div style={{ fontSize: 11, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Total Matched Lines</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: "#ef4444" }}>{totalMatched}<span style={{ fontSize: 14, color: "#52525b", fontWeight: 400, marginLeft: 6 }}>/ {TOTAL}</span></div>
-              <div style={{ marginTop: 6, background: "#262626", borderRadius: 4, height: 4 }}>
-                <div style={{ width: Math.min((totalMatched/Math.max(TOTAL,1))*100, 100) + "%", height: "100%", background: "linear-gradient(90deg,#ef4444,#f97316)" }} />
+          ) : (
+            <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px 24px", marginBottom: 20 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: "#f5f5f5", marginBottom: 16 }}>Summary</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                {matches.slice(0, 4).map((m: any, i: number) => (
+                  <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "#171717", border: "1px solid " + COLORS[i%4].border + "33", borderRadius: 8, padding: "6px 12px" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: COLORS[i%4].border, display: "inline-block" }} />
+                    <span style={{ fontFamily: "monospace", fontSize: 12, color: "#a3a3a3" }}>#{m.submissionVersionBId.slice(0, 8)}</span>
+                    <span style={{ fontSize: 12, color: COLORS[i%4].text, fontWeight: 700 }}>{m.percentA}%</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: "#171717", borderRadius: 8, padding: "14px 16px" }}>
+                <div style={{ fontSize: 11, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Total Matched Lines</div>
+                <div style={{ fontSize: 28, fontWeight: 700, color: "#ef4444" }}>{totalMatched}<span style={{ fontSize: 14, color: "#52525b", fontWeight: 400, marginLeft: 6 }}>/ {TOTAL}</span></div>
+                <div style={{ marginTop: 6, background: "#262626", borderRadius: 4, height: 4 }}>
+                  <div style={{ width: Math.min((totalMatched/Math.max(TOTAL,1))*100, 100) + "%", height: "100%", background: "linear-gradient(90deg,#ef4444,#f97316)" }} />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
             <button onClick={() => setFilter(null)} style={{ fontSize: 11, padding: "4px 10px", borderRadius: 99, cursor: "pointer", background: !filter ? "#1a1a1a" : "transparent", border: "1px solid " + (!filter ? "#555" : "#2a2a2a"), color: !filter ? "#f5f5f5" : "#52525b" }}>All</button>
@@ -179,6 +191,7 @@ export default function ReportPage() {
         <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "16px 20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
             <span style={{ fontWeight: 700, fontSize: 13, color: "#f5f5f5" }}>My Submission</span>
+            <span style={{ fontSize: 11, color: "#52525b" }}>{TOTAL} lines</span>
             <span style={{ marginLeft: "auto", fontSize: 11, color: "#3f3f46", background: "#1a1a1a", padding: "2px 8px", borderRadius: 4 }}>read-only</span>
           </div>
           <div style={{ marginBottom: 12, background: "#080808", borderRadius: 4, height: 8, display: "flex", overflow: "hidden" }}>
