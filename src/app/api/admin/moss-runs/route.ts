@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
+import { neon } from "@neondatabase/serverless";
 
 export async function GET() {
   try {
-    const { PrismaClient } = await import("@prisma/client");
-    const prisma = new PrismaClient();
-    const runs = await prisma.mossRun.findMany({ orderBy: { createdAt: "desc" }, take: 20 });
-    await prisma.$disconnect();
+    const sql = neon(process.env.DATABASE_URL!);
+    const runs = await sql`SELECT * FROM "MossRun" ORDER BY "createdAt" DESC LIMIT 20`;
     return NextResponse.json({ runs });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
