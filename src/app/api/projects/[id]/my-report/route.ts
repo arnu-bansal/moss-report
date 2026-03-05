@@ -1,10 +1,7 @@
-import { NextResponse } from "next/server";
-import { NextRequest } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "../../../../lib/prisma";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
+export const runtime = "nodejs";
 
 export async function GET(
   request: NextRequest,
@@ -18,19 +15,23 @@ export async function GET(
       orderBy: { createdAt: "desc" },
       include: {
         matches: {
-          include: {
-            segments: true,
-          },
-        },
-      },
+          include: { segments: true }
+        }
+      }
     });
 
-    if (!latestRun) {
-      return NextResponse.json({ error: "No MOSS run found" }, { status: 404 });
-    }
+    if (!latestRun) return NextResponse.json({ error: "No MOSS run found" }, { status: 404 });
 
-    return NextResponse.json(latestRun);
-  } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    // Get all unique submissionVersionIds from matches (side A)
+    const versionIds = [...new Set(latestRun.matches.map((m: any) => m.submissionVersionAId))];
+
+    // Get the actual code for each version
+    const versions = await prisma.submissionVersion.findMany({
+      where: { id: { in: versionIds } }
+    });
+
+    return NextResponse.json({ ...latestRun, versions });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
