@@ -18,7 +18,7 @@ export async function GET(
     const prisma = getDB();
 
     const latestRun = await prisma.mossRun.findFirst({
-      where: { projectId },
+      where: { projectId, status: "COMPLETED" },
       orderBy: { createdAt: "desc" },
       include: { matches: { include: { segments: true } } }
     });
