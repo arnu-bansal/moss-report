@@ -1,19 +1,13 @@
 import { NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
 
-let prisma: any;
-async function getPrisma() {
-  if (!prisma) {
-    const { default: pkg } = await import("@prisma/client");
-    const { PrismaClient } = pkg;
-    prisma = new PrismaClient();
-  }
-  return prisma;
-}
+const prisma = new PrismaClient({
+  datasources: { db: { url: process.env.DATABASE_URL } }
+});
 
 export async function GET() {
   try {
-    const db = await getPrisma();
-    const runs = await db.mossRun.findMany({
+    const runs = await prisma.mossRun.findMany({
       orderBy: { createdAt: "desc" },
       take: 20,
     });
