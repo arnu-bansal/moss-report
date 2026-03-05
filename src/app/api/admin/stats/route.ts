@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       prisma.user.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, email: true, role: true, createdAt: true } }),
       prisma.project.findMany({ orderBy: { createdAt: "desc" }, include: { _count: { select: { submissions: true, mossRuns: true } } } }),
       prisma.submission.findMany({ orderBy: { createdAt: "desc" }, include: { user: { select: { name: true, email: true } }, versions: { orderBy: { versionNumber: "desc" }, take: 1 } } }),
-      prisma.mossRun.findMany({ orderBy: { createdAt: "desc" }, take: 50, include: { _count: { select: { matches: true } } } }),
+      prisma.mossRun.findMany({ orderBy: { createdAt: "desc" }, take: 50, include: { _count: { select: { matches: true } }, project: { select: { name: true, language: true } } } }),
     ]);
     await prisma.$disconnect();
     return NextResponse.json({ users, projects, submissions, runs });
