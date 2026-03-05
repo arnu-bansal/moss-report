@@ -1,0 +1,22 @@
+﻿FROM node:20-slim
+
+# Install Perl
+RUN apt-get update && apt-get install -y perl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+RUN npm install
+
+# Copy prisma schema and generate client
+COPY prisma ./prisma/
+RUN npx prisma generate
+
+# Copy the moss runner files
+COPY src/moss-runner ./src/moss-runner/
+
+# Set working directory to runner
+WORKDIR /app/src/moss-runner
+
+CMD ["node", "watcher.js"]
