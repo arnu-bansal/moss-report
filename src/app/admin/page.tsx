@@ -13,24 +13,22 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (status === "unauthenticated") router.push("/login");
-    if (status === "authenticated" && (session?.user as any)?.role !== "admin") router.push("/projects");
+    if (status === "loading") return;
+    if (status === "unauthenticated") { router.push("/login"); return; }
+    const role = (session?.user as any)?.role;
+    if (role && role !== "admin") { router.push("/projects"); return; }
+    fetch("/api/admin/stats").then(r => r.json()).then(d => { setData(d); setLoading(false); });
   }, [status, session]);
 
-  useEffect(() => {
-    fetch("/api/admin/stats").then(r => r.json()).then(d => { setData(d); setLoading(false); });
-  }, []);
-
-  if (loading || !data) return (
+  if (status === "loading" || loading || !data) return (
     <div style={{ minHeight: "100vh", background: "#050505", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: "#71717a" }}>Loading admin panel...</div>
+      <div style={{ color: "#71717a" }}>Loading...</div>
     </div>
   );
 
   const { users, projects, submissions, runs } = data;
   const completedRuns = runs.filter((r: any) => r.status === "COMPLETED");
   const totalMatches = completedRuns.reduce((a: number, r: any) => a + (r._count?.matches || 0), 0);
-
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "users", label: "Users (" + users.length + ")" },
@@ -78,8 +76,8 @@ export default function AdminPage() {
         {tab === "overview" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px 24px" }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: "#f5f5f5", marginBottom: 16 }}>Recent Users</div>
-              {users.slice(0, 6).map((u: any) => (
+              <div style={{ fontWeight: 700, fontSize: 14, color: "#f5f5f5", marginBottom: 16 }}>Users</div>
+              {users.map((u: any) => (
                 <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #1a1a1a" }}>
                   <div style={{ width: 32, height: 32, borderRadius: "50%", background: u.role === "admin" ? "linear-gradient(135deg,#ef4444,#f97316)" : "linear-gradient(135deg,#7c3aed,#4f46e5)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{u.name?.[0]?.toUpperCase() || "?"}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -93,11 +91,11 @@ export default function AdminPage() {
 
             <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px 24px" }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: "#f5f5f5", marginBottom: 16 }}>Recent MOSS Runs</div>
-              {runs.slice(0, 6).map((r: any) => (
+              {runs.slice(0, 8).map((r: any) => (
                 <div key={r.id} onClick={() => router.push("/projects/" + r.projectId + "/report")}
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #1a1a1a", cursor: "pointer" }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, color: "#d4d4d4", fontWeight: 600 }}>{r.project?.name || "Unknown Project"}</div>
+                    <div style={{ fontSize: 13, color: "#d4d4d4", fontWeight: 600 }}>{r.project?.name || "Unknown"}</div>
                     <div style={{ fontSize: 11, color: "#52525b" }}>{new Date(r.createdAt).toLocaleString()}</div>
                   </div>
                   <div style={{ fontSize: 11, color: "#71717a" }}>{r._count?.matches || 0} matches</div>
@@ -181,8 +179,7 @@ export default function AdminPage() {
                     <td style={{ padding: "14px 20px", fontSize: 13, color: "#d4d4d4" }}>{p._count?.mossRuns || 0}</td>
                     <td style={{ padding: "14px 20px", fontSize: 12, color: "#52525b" }}>{new Date(p.createdAt).toLocaleDateString()}</td>
                     <td style={{ padding: "14px 20px" }}>
-                      <button onClick={() => router.push("/projects/" + p.id)}
-                        style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Open</button>
+                      <button onClick={() => router.push("/projects/" + p.id)} style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Open</button>
                     </td>
                   </tr>
                 ))}
@@ -215,8 +212,7 @@ export default function AdminPage() {
                     <td style={{ padding: "14px 20px", fontSize: 12, color: "#52525b" }}>{new Date(r.createdAt).toLocaleString()}</td>
                     <td style={{ padding: "14px 20px" }}>
                       {r.status === "COMPLETED" && (
-                        <button onClick={() => router.push("/projects/" + r.projectId + "/report")}
-                          style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #ef444444", background: "transparent", color: "#fca5a5", cursor: "pointer" }}>Report</button>
+                        <button onClick={() => router.push("/projects/" + r.projectId + "/report")} style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #ef444444", background: "transparent", color: "#fca5a5", cursor: "pointer" }}>Report</button>
                       )}
                     </td>
                   </tr>
