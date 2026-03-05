@@ -2,9 +2,19 @@
 const { PrismaClient } = require("@prisma/client");
 const { exec } = require("child_process");
 const path = require("path");
+const http = require("http");
 
 process.env.DATABASE_URL = process.env.DATABASE_URL || "postgres://e090abc9d5a5606d19ed67103590bcfe7537f3aeee775158608124218dcf93e0:sk_MXWjEBecCd0XpgUaKo9d2@db.prisma.io:5432/postgres?sslmode=require";
 const DB_URL = process.env.DATABASE_URL;
+
+// Tiny HTTP server so Render thinks this is a web service
+const PORT = process.env.PORT || 3001;
+http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end("MOSS watcher running");
+}).listen(PORT, () => {
+  console.log("Health check server on port", PORT);
+});
 
 async function processQueue() {
   let prisma;
