@@ -1,58 +1,45 @@
-import { NextResponse } from "next/server";
-import { NextRequest } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { NextRequest, NextResponse } from "next/server";
+import { execSync } from "child_process";
+import fs from "fs";
+import path from "path";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
+let prisma: any;
+async function getPrisma() {
+  if (!prisma) {
+    const { default: pkg } = await import("@prisma/client");
+    const { PrismaClient } = pkg;
+    prisma = new PrismaClient();
+  }
+  return prisma;
+}
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { code, projectId, userId } = await request.json();
+    const { projectId, code, userId } = await req.json();
+    if (!code || !projectId) return NextResponse.json({ error: "Missing fields" }, { status: 400 });
 
-    if (!code || !projectId || !userId) {
-      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-    }
+    const db = await getPrisma();
+    const uid = userId || "anonymous-" + Math.random().toString(36).slice(2, 8);
 
-    // Get or create submission
-    let submission = await prisma.submission.findFirst({
-      where: { userId, projectId },
-      include: { versions: true },
-    });
-
+    let submission = await db.submission.findFirst({ where: { projectId, userId: uid } });
     if (!submission) {
-      submission = await prisma.submission.create({
-        data: {
-          id: `sub-${Date.now()}`,
-          userId,
-          projectId,
-        },
-        include: { versions: true },
+      submission = await db.submission.create({
+        data: { projectId, userId: uid }
       });
     }
 
-    // Get next version number
-    const versionNumber = (submission.versions?.length || 0) + 1;
-
-    // Create new version
-    const version = await prisma.submissionVersion.create({
-      data: {
-        id: `ver-${Date.now()}`,
-        submissionId: submission.id,
-        versionNumber,
-        code,
-        isFinal: true,
-      },
+    const lastVersion = await db.submissionVersion.findFirst({
+      where: { submissionId: submission.id },
+      orderBy: { versionNumber: "desc" }
     });
 
-    // Update latestVersionId
-    await prisma.submission.update({
-      where: { id: submission.id },
-      data: { latestVersionId: version.id },
+    const versionNumber = (lastVersion?.versionNumber || 0) + 1;
+    const version = await db.submissionVersion.create({
+      data: { submissionId: submission.id, versionNumber, code, isFinal: true }
     });
 
-    return NextResponse.json({ version });
-  } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+    return NextResponse.json({ success: true, versionId: version.id, versionNumber });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

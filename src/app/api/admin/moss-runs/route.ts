@@ -1,18 +1,24 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-const prisma = new PrismaClient({ adapter });
+let prisma: any;
+async function getPrisma() {
+  if (!prisma) {
+    const { default: pkg } = await import("@prisma/client");
+    const { PrismaClient } = pkg;
+    prisma = new PrismaClient();
+  }
+  return prisma;
+}
 
 export async function GET() {
   try {
-    const runs = await prisma.mossRun.findMany({
+    const db = await getPrisma();
+    const runs = await db.mossRun.findMany({
       orderBy: { createdAt: "desc" },
-      include: { matches: true },
+      take: 20,
     });
     return NextResponse.json({ runs });
-  } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
