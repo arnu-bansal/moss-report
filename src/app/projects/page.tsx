@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -13,6 +13,7 @@ export default function ProjectsPage() {
   const [name, setName] = useState("");
   const [language, setLanguage] = useState("java");
   const [loading, setLoading] = useState(true);
+  const isAdmin = (session?.user as any)?.role === "admin";
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -46,9 +47,16 @@ export default function ProjectsPage() {
         <span style={{ fontWeight: 700, fontSize: 15, color: "#f5f5f5" }}>CodeScan</span>
         <span style={{ color: "#3f3f46" }}>/</span>
         <span style={{ fontSize: 13, color: "#71717a" }}>Projects</span>
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ fontSize: 12, color: "#71717a" }}>{session?.user?.email}</span>
-          <button onClick={() => signOut({ callbackUrl: "/login" })} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Sign out</button>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+          {isAdmin && (
+            <button onClick={() => router.push("/admin")}
+              style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "1px solid #ef444444", background: "#1a0a0a", color: "#fca5a5", cursor: "pointer" }}>
+              Admin Panel
+            </button>
+          )}
+          <span style={{ fontSize: 12, color: "#71717a" }}>{session?.user?.name}</span>
+          <button onClick={() => signOut({ callbackUrl: "/login" })}
+            style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Sign out</button>
         </div>
       </div>
 
@@ -58,7 +66,8 @@ export default function ProjectsPage() {
             <div style={{ fontSize: 22, fontWeight: 700, color: "#f5f5f5" }}>My Projects</div>
             <div style={{ fontSize: 13, color: "#71717a", marginTop: 4 }}>Create a project, submit code, and run similarity checks.</div>
           </div>
-          <button onClick={() => setCreating(true)} style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#ef4444,#f97316)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ New Project</button>
+          <button onClick={() => setCreating(true)}
+            style={{ padding: "10px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#ef4444,#f97316)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>+ New Project</button>
         </div>
 
         {creating && (
@@ -79,21 +88,23 @@ export default function ProjectsPage() {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={createProject} style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#ef4444,#f97316)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Create</button>
-              <button onClick={() => setCreating(false)} style={{ padding: "9px 20px", borderRadius: 8, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", fontSize: 13, cursor: "pointer" }}>Cancel</button>
+              <button onClick={createProject}
+                style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#ef4444,#f97316)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Create</button>
+              <button onClick={() => setCreating(false)}
+                style={{ padding: "9px 20px", borderRadius: 8, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", fontSize: 13, cursor: "pointer" }}>Cancel</button>
             </div>
           </div>
         )}
 
         {projects.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0", color: "#52525b" }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>??</div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>[ ]</div>
             <div>No projects yet. Create one to get started!</div>
           </div>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
             {projects.map((p: any) => (
-              <div key={p.id} onClick={() => router.push(`/projects/${p.id}`)}
+              <div key={p.id} onClick={() => router.push("/projects/" + p.id)}
                 style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px 24px", cursor: "pointer", display: "flex", alignItems: "center", gap: 16 }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = "#ef444444")}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = "#1e1e1e")}>
@@ -102,7 +113,7 @@ export default function ProjectsPage() {
                   <div style={{ fontSize: 14, fontWeight: 700, color: "#f5f5f5" }}>{p.name}</div>
                   <div style={{ fontSize: 12, color: "#52525b", marginTop: 2 }}>Created {new Date(p.createdAt).toLocaleDateString()}</div>
                 </div>
-                <div style={{ marginLeft: "auto", fontSize: 12, color: "#52525b" }}>?</div>
+                <div style={{ marginLeft: "auto", fontSize: 12, color: "#52525b" }}>→</div>
               </div>
             ))}
           </div>

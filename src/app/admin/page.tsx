@@ -3,38 +3,65 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
-type Tab = "overview" | "users" | "projects" | "runs";
+type Tab = "overview" | "users" | "projects" | "runs" | "submissions";
 
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [data, setData] = useState<any>(null);
+  const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [expandedCode, setExpandedCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "loading") return;
     if (status === "unauthenticated") { router.push("/login"); return; }
     const role = (session?.user as any)?.role;
     if (role && role !== "admin") { router.push("/projects"); return; }
-    fetch("/api/admin/stats").then(r => r.json()).then(d => { setData(d); setLoading(false); });
+    Promise.all([
+      fetch("/api/admin/stats").then(r => r.json()),
+      fetch("/api/admin/submissions").then(r => r.json()),
+    ]).then(([stats, subs]) => {
+      setData(stats);
+      setSubmissions(subs.submissions || []);
+      setLoading(false);
+    });
   }, [status, session]);
 
-  if (status === "loading" || loading || !data) return (
+  async function deleteProject(id: string, name: string) {
+    if (!confirm("Delete project \"" + name + "\"? This removes all submissions and runs. Cannot be undone.")) return;
+    setDeleting(id);
+    await fetch("/api/projects/" + id + "/delete", { method: "DELETE" });
+    setData((d: any) => ({ ...d, projects: d.projects.filter((p: any) => p.id !== id) }));
+    setDeleting(null);
+  }
+
+  if (loading || !data) return (
     <div style={{ minHeight: "100vh", background: "#050505", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ color: "#71717a" }}>Loading...</div>
+      <div style={{ color: "#71717a" }}>Loading admin panel...</div>
     </div>
   );
 
-  const { users, projects, submissions, runs } = data;
+  const { users, projects, runs } = data;
   const completedRuns = runs.filter((r: any) => r.status === "COMPLETED");
   const totalMatches = completedRuns.reduce((a: number, r: any) => a + (r._count?.matches || 0), 0);
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "users", label: "Users (" + users.length + ")" },
     { id: "projects", label: "Projects (" + projects.length + ")" },
+    { id: "submissions", label: "Submissions (" + submissions.length + ")" },
     { id: "runs", label: "MOSS Runs (" + runs.length + ")" },
   ];
+
+  const tabBtn = (t: { id: Tab; label: string }) => (
+    <button key={t.id} onClick={() => setTab(t.id)}
+      style={{ fontSize: 13, padding: "10px 18px", borderRadius: "8px 8px 0 0", border: "1px solid " + (tab === t.id ? "#1e1e1e" : "transparent"), borderBottom: tab === t.id ? "1px solid #050505" : "transparent", background: tab === t.id ? "#0f0f0f" : "transparent", color: tab === t.id ? "#f5f5f5" : "#71717a", cursor: "pointer", marginBottom: -1 }}>
+      {t.label}
+    </button>
+  );
 
   return (
     <div style={{ minHeight: "100vh", background: "#050505", color: "#d4d4d4", fontFamily: "system-ui, sans-serif" }}>
@@ -65,14 +92,10 @@ export default function AdminPage() {
         </div>
 
         <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "1px solid #1a1a1a" }}>
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ fontSize: 13, padding: "10px 18px", borderRadius: "8px 8px 0 0", border: "1px solid " + (tab === t.id ? "#1e1e1e" : "transparent"), borderBottom: tab === t.id ? "1px solid #050505" : "transparent", background: tab === t.id ? "#0f0f0f" : "transparent", color: tab === t.id ? "#f5f5f5" : "#71717a", cursor: "pointer", marginBottom: -1 }}>
-              {t.label}
-            </button>
-          ))}
+          {tabs.map(tabBtn)}
         </div>
 
+        {/* OVERVIEW */}
         {tab === "overview" && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
             <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px 24px" }}>
@@ -108,17 +131,18 @@ export default function AdminPage() {
               <div style={{ fontWeight: 700, fontSize: 14, color: "#f5f5f5", marginBottom: 16 }}>All Projects</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                 {projects.map((p: any) => (
-                  <div key={p.id} onClick={() => router.push("/projects/" + p.id)}
-                    style={{ background: "#171717", border: "1px solid #2a2a2a", borderRadius: 10, padding: "16px", cursor: "pointer" }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = "#ef444444")}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#2a2a2a")}>
+                  <div key={p.id} style={{ background: "#171717", border: "1px solid #2a2a2a", borderRadius: 10, padding: "16px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                       <div style={{ width: 32, height: 32, borderRadius: 6, background: "#0f0f0f", border: "1px solid #2a2a2a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "monospace", fontSize: 10, color: "#71717a" }}>.{p.language}</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5" }}>{p.name}</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#f5f5f5", flex: 1 }}>{p.name}</div>
                     </div>
-                    <div style={{ display: "flex", gap: 16 }}>
-                      <div style={{ fontSize: 11, color: "#52525b" }}>{p._count?.submissions || 0} submissions</div>
-                      <div style={{ fontSize: 11, color: "#52525b" }}>{p._count?.mossRuns || 0} runs</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: 12 }}>
+                        <div style={{ fontSize: 11, color: "#52525b" }}>{p._count?.submissions || 0} submissions</div>
+                        <div style={{ fontSize: 11, color: "#52525b" }}>{p._count?.mossRuns || 0} runs</div>
+                      </div>
+                      <button onClick={() => router.push("/projects/" + p.id)}
+                        style={{ fontSize: 11, padding: "3px 10px", borderRadius: 5, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Open</button>
                     </div>
                   </div>
                 ))}
@@ -127,6 +151,7 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* USERS */}
         {tab === "users" && (
           <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -158,6 +183,7 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* PROJECTS */}
         {tab === "projects" && (
           <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -179,7 +205,14 @@ export default function AdminPage() {
                     <td style={{ padding: "14px 20px", fontSize: 13, color: "#d4d4d4" }}>{p._count?.mossRuns || 0}</td>
                     <td style={{ padding: "14px 20px", fontSize: 12, color: "#52525b" }}>{new Date(p.createdAt).toLocaleDateString()}</td>
                     <td style={{ padding: "14px 20px" }}>
-                      <button onClick={() => router.push("/projects/" + p.id)} style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Open</button>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => router.push("/projects/" + p.id)}
+                          style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #2a2a2a", background: "transparent", color: "#71717a", cursor: "pointer" }}>Open</button>
+                        <button onClick={() => deleteProject(p.id, p.name)} disabled={deleting === p.id}
+                          style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #ef444444", background: "transparent", color: "#fca5a5", cursor: "pointer" }}>
+                          {deleting === p.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -188,6 +221,59 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* SUBMISSIONS */}
+        {tab === "submissions" && (
+          <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #1e1e1e" }}>
+                  {["Student", "Project", "Version", "Submitted", "Code"].map(h => (
+                    <th key={h} style={{ padding: "12px 20px", textAlign: "left", fontSize: 11, color: "#52525b", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {submissions.map((s: any) => {
+                  const ver = s.versions?.[0];
+                  const isOpen = expandedCode === s.id;
+                  return (
+                    <>
+                      <tr key={s.id} style={{ borderBottom: isOpen ? "none" : "1px solid #1a1a1a" }}>
+                        <td style={{ padding: "14px 20px" }}>
+                          <div style={{ fontSize: 13, color: "#f5f5f5", fontWeight: 600 }}>{s.user?.name || "Unknown"}</div>
+                          <div style={{ fontSize: 11, color: "#52525b" }}>{s.user?.email}</div>
+                        </td>
+                        <td style={{ padding: "14px 20px" }}>
+                          <div style={{ fontSize: 13, color: "#d4d4d4" }}>{s.project?.name || "Unknown"}</div>
+                          <span style={{ fontFamily: "monospace", fontSize: 10, color: "#52525b" }}>.{s.project?.language}</span>
+                        </td>
+                        <td style={{ padding: "14px 20px", fontSize: 13, color: "#71717a" }}>v{ver?.versionNumber || 1}</td>
+                        <td style={{ padding: "14px 20px", fontSize: 12, color: "#52525b" }}>{new Date(s.createdAt).toLocaleString()}</td>
+                        <td style={{ padding: "14px 20px" }}>
+                          {ver && (
+                            <button onClick={() => setExpandedCode(isOpen ? null : s.id)}
+                              style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid " + (isOpen ? "#ef444444" : "#2a2a2a"), background: "transparent", color: isOpen ? "#fca5a5" : "#71717a", cursor: "pointer" }}>
+                              {isOpen ? "Hide" : "View Code"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                      {isOpen && ver && (
+                        <tr key={s.id + "-code"} style={{ borderBottom: "1px solid #1a1a1a" }}>
+                          <td colSpan={5} style={{ padding: "0 20px 16px" }}>
+                            <pre style={{ margin: 0, background: "#080808", border: "1px solid #1e1e1e", borderRadius: 8, padding: "16px", fontFamily: "monospace", fontSize: 12, color: "#d4d4d4", whiteSpace: "pre-wrap", maxHeight: 300, overflow: "auto" }}>{ver.code}</pre>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* RUNS */}
         {tab === "runs" && (
           <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -212,7 +298,8 @@ export default function AdminPage() {
                     <td style={{ padding: "14px 20px", fontSize: 12, color: "#52525b" }}>{new Date(r.createdAt).toLocaleString()}</td>
                     <td style={{ padding: "14px 20px" }}>
                       {r.status === "COMPLETED" && (
-                        <button onClick={() => router.push("/projects/" + r.projectId + "/report")} style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #ef444444", background: "transparent", color: "#fca5a5", cursor: "pointer" }}>Report</button>
+                        <button onClick={() => router.push("/projects/" + r.projectId + "/report")}
+                          style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #ef444444", background: "transparent", color: "#fca5a5", cursor: "pointer" }}>Report</button>
                       )}
                     </td>
                   </tr>
