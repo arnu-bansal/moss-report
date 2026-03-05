@@ -17,7 +17,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const prisma = getDB();
 
-    // Get the latest completed MOSS run
     const latestRun = await prisma.mossRun.findFirst({
       where: { projectId, status: "COMPLETED" },
       orderBy: { createdAt: "desc" },
@@ -29,7 +28,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       return NextResponse.json({ error: "No MOSS run found" }, { status: 404 });
     }
 
-    // Find THIS user's submission and latest version
     const mySubmission = await prisma.submission.findFirst({
       where: { projectId, userId },
       include: { versions: { orderBy: { versionNumber: "desc" }, take: 1 } }
@@ -42,10 +40,32 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const myVersionId = mySubmission.versions[0].id;
 
-    // Only return matches where MY version is side A (submissionVersionAId)
-    const myMatches = latestRun.matches.filter(
-      m => m.submissionVersionAId === myVersionId
-    );
+    // Normalize all matches so MY code is always side A
+    const myMatches = [];
+    for (const match of latestRun.matches) {
+      const iAmA = match.submissionVersionAId === myVersionId;
+      const iAmB = match.submissionVersionBId === myVersionId;
+      if (!iAmA && !iAmB) continue;
+
+      if (iAmA) {
+        // Already correct orientation
+        myMatches.push(match);
+      } else {
+        // I am side B — flip it so I become side A
+        const flipped = {
+          ...match,
+          submissionVersionAId: match.submissionVersionBId,
+          submissionVersionBId: match.submissionVersionAId,
+          percentA: match.percentB,
+          percentB: match.percentA,
+          segments: match.segments.map(s => ({
+            ...s,
+            side: s.side === "A" ? "B" : "A", // flip segment sides too
+          })),
+        };
+        myMatches.push(flipped);
+      }
+    }
 
     await prisma.$disconnect();
     return NextResponse.json({
