@@ -1,1 +1,30 @@
-public class BubbleSort {     static int[] arr;     static int n;     public static void main(String[] args) {         java.util.Scanner sc = new java.util.Scanner(System.in);         n = sc.nextInt();         arr = new int[n];         for (int i = 0; i < n; i++) {             arr[i] = sc.nextInt();         }         bubbleSort();         for (int i = 0; i < n; i++) {             System.out.print(arr[i] + " ");         }     }     static void bubbleSort() {         for (int i = 0; i < n - 1; i++) {             for (int j = 0; j < n - i - 1; j++) {                 if (arr[j] > arr[j + 1]) {                     int temp = arr[j];                     arr[j] = arr[j + 1];                     arr[j + 1] = temp;                 }             }         }     } }
+import java.util.Scanner;
+public class Sort {
+    static int[] data;
+    static int size;
+
+    public static void main(String[] args) {
+        Scanner input = new Scanner(System.in);
+        size = input.nextInt();
+        data = new int[size];
+        for (int i = 0; i < size; i++) {
+            data[i] = input.nextInt();
+        }
+        sort();
+        for (int i = 0; i < size; i++) {
+            System.out.print(data[i] + " ");
+        }
+    }
+
+    static void sort() {
+        for (int i = 0; i < size - 1; i++) {
+            for (int j = 0; j < size - i - 1; j++) {
+                if (data[j] > data[j + 1]) {
+                    int tmp = data[j];
+                    data[j] = data[j + 1];
+                    data[j + 1] = tmp;
+                }
+            }
+        }
+    }
+}
