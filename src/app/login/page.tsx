@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -29,7 +29,7 @@ function LoginForm() {
         {registered && <div style={{ fontSize: 12, color: "#86efac", background: "#052e16", border: "1px solid #16a34a44", borderRadius: 8, padding: "10px 12px", marginBottom: 16 }}>Account created! Sign in below.</div>}
         {[
           { label: "Email", value: email, set: setEmail, type: "email", placeholder: "you@university.edu" },
-          { label: "Password", value: password, set: setPassword, type: "password", placeholder: "••••••••" },
+          { label: "Password", value: password, set: setPassword, type: "password", placeholder: "........" },
         ].map((f) => (
           <div key={f.label} style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: "#71717a", marginBottom: 6 }}>{f.label}</div>

@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -33,7 +33,7 @@ export default function SignupPage() {
         {[
           { label: "Full Name", value: name, set: setName, type: "text", placeholder: "John Doe" },
           { label: "Email", value: email, set: setEmail, type: "email", placeholder: "you@university.edu" },
-          { label: "Password", value: password, set: setPassword, type: "password", placeholder: "••••••••" },
+          { label: "Password", value: password, set: setPassword, type: "password", placeholder: "........" },
         ].map((f) => (
           <div key={f.label} style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 12, color: "#71717a", marginBottom: 6 }}>{f.label}</div>
