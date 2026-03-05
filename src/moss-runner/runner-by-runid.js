@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 
+process.env.DATABASE_URL = process.env.DATABASE_URL || "postgres://e090abc9d5a5606d19ed67103590bcfe7537f3aeee775158608124218dcf93e0:sk_MXWjEBecCd0XpgUaKo9d2@db.prisma.io:5432/postgres?sslmode=require";
 const DB_URL = process.env.DATABASE_URL;
 
 async function fetchHtml(url) {
@@ -20,7 +21,7 @@ async function fetchHtml(url) {
 }
 
 async function runMoss(projectId, runId) {
-  console.log("Running MOSS for project:", projectId, "runId:", runId);
+  console.log("[" + new Date().toLocaleTimeString() + "] Starting MOSS for project:", projectId, "run:", runId);
   const { PrismaClient } = require("@prisma/client");
   const { PrismaPg } = require("@prisma/adapter-pg");
   const adapter = new PrismaPg({ connectionString: DB_URL });
@@ -33,37 +34,41 @@ async function runMoss(projectId, runId) {
     });
 
     if (submissions.length < 2) {
-      console.log("Need at least 2 submissions.");
       await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: "Need at least 2 submissions" } });
       await prisma.$disconnect();
       return;
     }
 
-    // Get project language
     const project = await prisma.project.findUnique({ where: { id: projectId } });
     const lang = project?.language || "java";
-    const ext = { java: ".java", c: ".c", cpp: ".cpp", python: ".py", javascript: ".js", typescript: ".ts", txt: ".txt" }[lang] || ".java";
-    const mossLang = { java: "java", c: "c", cpp: "cc", python: "python", javascript: "javascript", typescript: "javascript", txt: "ascii" }[lang] || "java";
+    const extMap = { java: ".java", c: ".c", cpp: ".cpp", python: ".py", javascript: ".js", typescript: ".ts", txt: ".txt" };
+    const langMap = { java: "java", c: "c", cpp: "cc", python: "python", javascript: "javascript", typescript: "javascript", txt: "ascii" };
+    const ext = extMap[lang] || ".java";
+    const mossLang = langMap[lang] || "java";
 
-    const tmpDir = path.join(__dirname, "tmp");
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir);
+    // Per-run temp folder to avoid collisions between concurrent runs
+    const tmpDir = path.join(__dirname, "tmp", runId);
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
     for (const sub of submissions) {
       const version = sub.versions[0];
       if (!version) continue;
       const filePath = path.join(tmpDir, sub.userId + ext);
       fs.writeFileSync(filePath, version.code);
-      console.log("Wrote:", filePath);
+      console.log("  Wrote:", sub.userId + ext);
     }
 
     const mossScript = path.join(__dirname, "moss.pl");
     const files = submissions.filter(s => s.versions[0]).map(s => path.join(tmpDir, s.userId + ext)).join(" ");
     const cmd = "perl " + mossScript + " -l " + mossLang + " " + files;
-    console.log("Running:", cmd);
+    console.log("  Running MOSS...");
 
     exec(cmd, async (err, stdout) => {
+      // Clean up temp folder after MOSS runs
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+
       if (err) {
-        console.error("MOSS error:", err);
+        console.error("  MOSS error:", err.message);
         await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: err.message } });
         await prisma.$disconnect();
         return;
@@ -77,9 +82,8 @@ async function runMoss(projectId, runId) {
       }
 
       const mossUrl = urlMatch[0].trim();
-      console.log("MOSS URL:", mossUrl);
+      console.log("  MOSS URL:", mossUrl);
 
-      // Parse results
       const indexHtml = await fetchHtml(mossUrl.endsWith("/") ? mossUrl : mossUrl + "/");
       const rows = indexHtml.split("<TR>").slice(2);
       let count = 0;
@@ -88,13 +92,13 @@ async function runMoss(projectId, runId) {
         if (!row.includes("HREF")) continue;
         const hrefMatch = row.match(/HREF="([^"]+)"/);
         const percents = [...row.matchAll(/\((\d+)%\)/g)].map(m => parseInt(m[1]));
-        const files2 = [...row.matchAll(/tmp[/\\]([^.]+)\.[a-z]+/g)].map(m => m[1]);
+        const files2 = [...row.matchAll(/tmp[/\\][^/\\]+[/\\]([^.]+)\.[a-z]+/g)].map(m => m[1]);
         if (!hrefMatch || percents.length < 2 || files2.length < 2) continue;
 
         const matchUrl = hrefMatch[1];
         const userA = files2[0], userB = files2[1];
         const percentA = percents[0], percentB = percents[1];
-        console.log("Match:", userA, percentA + "%", "vs", userB, percentB + "%");
+        console.log("  Match:", userA, percentA + "% vs", userB, percentB + "%");
 
         const subA = submissions.find(s => s.userId === userA);
         const subB = submissions.find(s => s.userId === userB);
@@ -130,9 +134,9 @@ async function runMoss(projectId, runId) {
           segments.sort((a, b) => a.startLine - b.startLine);
           const merged = [];
           for (const seg of segments) {
-            if (merged.length && seg.startLine <= merged[merged.length-1].endLine + 1)
-              merged[merged.length-1].endLine = Math.max(merged[merged.length-1].endLine, seg.endLine);
-            else merged.push({...seg});
+            if (merged.length && seg.startLine <= merged[merged.length - 1].endLine + 1)
+              merged[merged.length - 1].endLine = Math.max(merged[merged.length - 1].endLine, seg.endLine);
+            else merged.push({ ...seg });
           }
           for (const seg of merged) {
             await prisma.mossMatchSegment.create({
@@ -145,16 +149,21 @@ async function runMoss(projectId, runId) {
           }
         }
         count++;
+        // Small delay between fetching match detail pages to avoid hammering MOSS
+        await new Promise(r => setTimeout(r, 500));
       }
 
       await prisma.mossRun.update({ where: { id: runId }, data: { status: "COMPLETED" } });
-      console.log("Done! Saved", count, "matches.");
+      console.log("[" + new Date().toLocaleTimeString() + "] Done! Saved", count, "matches for run", runId);
       await prisma.$disconnect();
     });
+
   } catch (e) {
-    console.error("Error:", e);
-    await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: e.message } }).catch(() => {});
-    await prisma.$disconnect();
+    console.error("Fatal error:", e.message);
+    try {
+      await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: e.message } });
+      await prisma.$disconnect();
+    } catch {}
   }
 }
 
