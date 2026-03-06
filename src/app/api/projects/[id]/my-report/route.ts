@@ -40,30 +40,32 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const myVersionId = mySubmission.versions[0].id;
 
-    // Get current user's role
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
       select: { role: true }
     });
     const isAdmin = currentUser?.role === "admin";
 
-    // Get all submissions to resolve user names
     const allSubmissions = await prisma.submission.findMany({
       where: { projectId },
       include: {
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true, role: true } },
         versions: { orderBy: { versionNumber: "desc" }, take: 1 }
       }
     });
 
-    const versionToUser: Record<string, { name: string; email: string }> = {};
+    const versionToUser: Record<string, { name: string; email: string; role: string }> = {};
     for (const sub of allSubmissions) {
       if (sub.versions[0]) {
-        versionToUser[sub.versions[0].id] = { name: sub.user.name, email: sub.user.email };
+        versionToUser[sub.versions[0].id] = {
+          name: sub.user.name,
+          email: sub.user.email,
+          role: sub.user.role,
+        };
       }
     }
 
-    const REVEAL_THRESHOLD = 35; // reveal name if match >= 35% for students
+    const REVEAL_THRESHOLD = 35;
 
     const myMatches = [];
     for (const match of latestRun.matches) {
@@ -87,13 +89,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
       const otherVersionId = normalized.submissionVersionBId;
       const otherUser = versionToUser[otherVersionId];
+      const isAiMatch = otherUser?.role === "ai";
       const isHighMatch = normalized.percentA >= REVEAL_THRESHOLD;
 
-      // Admin always sees names, students see names only above threshold
-      normalized.revealedUser = (isAdmin || isHighMatch) && otherUser
-        ? { name: otherUser.name, email: otherUser.email }
+      // Always reveal AI model names, admin sees all, students see above threshold
+      normalized.revealedUser = (isAdmin || isHighMatch || isAiMatch) && otherUser
+        ? { name: otherUser.name, email: otherUser.email, role: otherUser.role }
         : null;
       normalized.isHighMatch = isHighMatch;
+      normalized.isAiMatch = isAiMatch;
       normalized.isAdmin = isAdmin;
 
       myMatches.push(normalized);

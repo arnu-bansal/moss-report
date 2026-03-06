@@ -8,6 +8,8 @@ const LANG_EXT: Record<string, string> = {
   javascript: ".js", typescript: ".ts", txt: ".txt"
 };
 
+const AI_MODELS = ["ChatGPT", "Claude", "Gemini", "Copilot", "DeepSeek"];
+
 export default function ProjectPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -21,6 +23,15 @@ export default function ProjectPage() {
   const [mossStatus, setMossStatus] = useState("");
   const [runs, setRuns] = useState<any[]>([]);
   const [error, setError] = useState("");
+  const [aiModel, setAiModel] = useState("ChatGPT");
+  const [aiCode, setAiCode] = useState("");
+  const [aiSubmitting, setAiSubmitting] = useState(false);
+  const [aiDone, setAiDone] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiSubmissions, setAiSubmissions] = useState<any[]>([]);
+  const [showAiPanel, setShowAiPanel] = useState(false);
+
+  const isAdmin = (session?.user as any)?.role === "admin";
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -30,6 +41,7 @@ export default function ProjectPage() {
     if (!projectId) return;
     fetch("/api/projects/" + projectId + "/info").then(r => r.json()).then(d => setProject(d.project));
     fetch("/api/projects/" + projectId + "/runs").then(r => r.json()).then(d => setRuns(d.runs || []));
+    fetch("/api/projects/" + projectId + "/ai-submit").then(r => r.json()).then(d => setAiSubmissions(d.aiSubmissions || []));
   }, [projectId]);
 
   async function handleSubmit() {
@@ -44,6 +56,23 @@ export default function ProjectPage() {
     const d = await res.json();
     if (d.error) { setError(d.error); setSubmitting(false); return; }
     setSubmitDone(true); setSubmitting(false);
+  }
+
+  async function handleAiSubmit() {
+    if (!aiCode.trim()) { setAiError("Paste AI code first"); return; }
+    setAiSubmitting(true); setAiError("");
+    const res = await fetch("/api/projects/" + projectId + "/ai-submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: aiCode, aiModel, adminUserId: (session?.user as any)?.id }),
+    });
+    const d = await res.json();
+    if (d.error) { setAiError(d.error); setAiSubmitting(false); return; }
+    setAiDone(true); setAiSubmitting(false);
+    setAiCode("");
+    // Refresh AI submissions
+    fetch("/api/projects/" + projectId + "/ai-submit").then(r => r.json()).then(d => setAiSubmissions(d.aiSubmissions || []));
+    setTimeout(() => setAiDone(false), 3000);
   }
 
   async function handleRunMoss() {
@@ -91,20 +120,22 @@ export default function ProjectPage() {
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 20px", display: "grid", gridTemplateColumns: "1fr 320px", gap: 20 }}>
         <div>
-          <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "24px" }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#f5f5f5", marginBottom: 4 }}>Submit Your Code</div>
+          {/* Student code submit */}
+          <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "24px", marginBottom: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#f5f5f5", marginBottom: 4 }}>
+              {isAdmin ? "Submit Code (as Admin)" : "Submit Your Code"}
+            </div>
             <div style={{ fontSize: 12, color: "#52525b", marginBottom: 16 }}>Language: <span style={{ color: "#71717a" }}>{project.language}</span></div>
             {submitDone ? (
               <div style={{ background: "#0a0f0a", border: "1px solid #16a34a44", borderRadius: 10, padding: "20px", textAlign: "center" }}>
                 <div style={{ fontSize: 14, color: "#86efac", fontWeight: 700, marginBottom: 8 }}>Submitted!</div>
-                <div style={{ fontSize: 12, color: "#4a7c59", marginBottom: 16 }}>Your code is saved. Run MOSS to check similarity.</div>
                 <button onClick={() => { setSubmitDone(false); setCode(""); }}
                   style={{ fontSize: 12, padding: "6px 16px", borderRadius: 6, border: "1px solid #16a34a44", background: "transparent", color: "#86efac", cursor: "pointer" }}>Submit Another Version</button>
               </div>
             ) : (
               <>
                 <textarea value={code} onChange={e => setCode(e.target.value)} placeholder={"Paste your " + project.language + " code here..."}
-                  style={{ width: "100%", height: 380, background: "#080808", border: "1px solid #1e1e1e", borderRadius: 10, padding: "16px", color: "#d4d4d4", fontFamily: "monospace", fontSize: 13, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+                  style={{ width: "100%", height: 300, background: "#080808", border: "1px solid #1e1e1e", borderRadius: 10, padding: "16px", color: "#d4d4d4", fontFamily: "monospace", fontSize: 13, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                 {error && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{error}</div>}
                 <button onClick={handleSubmit} disabled={submitting}
                   style={{ marginTop: 12, padding: "10px 28px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#ef4444,#f97316)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: submitting ? "not-allowed" : "pointer" }}>
@@ -113,12 +144,69 @@ export default function ProjectPage() {
               </>
             )}
           </div>
+
+          {/* AI Reference Code Panel - Admin Only */}
+          {isAdmin && (
+            <div style={{ background: "#0f0f0f", border: "1px solid #7c3aed44", borderRadius: 12, padding: "24px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "#f5f5f5" }}>AI Reference Submissions</div>
+                  <div style={{ fontSize: 12, color: "#52525b", marginTop: 2 }}>Submit AI-generated code to compare against students</div>
+                </div>
+                <button onClick={() => setShowAiPanel(!showAiPanel)}
+                  style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid #7c3aed44", background: showAiPanel ? "#1a0a2e" : "transparent", color: "#a78bfa", cursor: "pointer" }}>
+                  {showAiPanel ? "Hide" : "+ Add AI Code"}
+                </button>
+              </div>
+
+              {/* Existing AI submissions */}
+              {aiSubmissions.length > 0 && (
+                <div style={{ marginBottom: showAiPanel ? 16 : 0 }}>
+                  {aiSubmissions.map((s: any) => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#171717", border: "1px solid #2a2a2a", borderRadius: 8, marginBottom: 8 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 6, background: "linear-gradient(135deg,#7c3aed,#4f46e5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#fff", fontWeight: 700 }}>AI</div>
+                      <div>
+                        <div style={{ fontSize: 13, color: "#f5f5f5", fontWeight: 600 }}>{s.user.name}</div>
+                        <div style={{ fontSize: 11, color: "#52525b" }}>v{s.versions[0]?.versionNumber || 1} · {s.versions[0]?.filename}</div>
+                      </div>
+                      <span style={{ marginLeft: "auto", fontSize: 10, padding: "2px 8px", borderRadius: 99, background: "#1a0a2e", border: "1px solid #7c3aed44", color: "#a78bfa" }}>AI Reference</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showAiPanel && (
+                <div style={{ borderTop: aiSubmissions.length > 0 ? "1px solid #1e1e1e" : "none", paddingTop: aiSubmissions.length > 0 ? 16 : 0 }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, color: "#71717a", marginBottom: 6 }}>AI Model</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {AI_MODELS.map(m => (
+                        <button key={m} onClick={() => setAiModel(m)}
+                          style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid " + (aiModel === m ? "#7c3aed" : "#2a2a2a"), background: aiModel === m ? "#1a0a2e" : "transparent", color: aiModel === m ? "#a78bfa" : "#71717a", cursor: "pointer" }}>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <textarea value={aiCode} onChange={e => setAiCode(e.target.value)}
+                    placeholder={"Paste " + aiModel + "'s solution here..."}
+                    style={{ width: "100%", height: 250, background: "#080808", border: "1px solid #2a2a2a", borderRadius: 10, padding: "16px", color: "#d4d4d4", fontFamily: "monospace", fontSize: 13, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+                  {aiError && <div style={{ fontSize: 12, color: "#ef4444", marginTop: 8 }}>{aiError}</div>}
+                  {aiDone && <div style={{ fontSize: 12, color: "#86efac", marginTop: 8 }}>AI code submitted successfully!</div>}
+                  <button onClick={handleAiSubmit} disabled={aiSubmitting}
+                    style={{ marginTop: 12, padding: "10px 28px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c3aed,#4f46e5)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: aiSubmitting ? "not-allowed" : "pointer" }}>
+                    {aiSubmitting ? "Submitting..." : "Submit " + aiModel + " Code"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div>
           <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px", marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: "#f5f5f5", marginBottom: 8 }}>Run Similarity Check</div>
-            <div style={{ fontSize: 12, color: "#52525b", marginBottom: 16 }}>Compares all submissions in this project.</div>
+            <div style={{ fontSize: 12, color: "#52525b", marginBottom: 16 }}>Compares all submissions including AI references.</div>
             <button onClick={handleRunMoss} disabled={runningMoss}
               style={{ width: "100%", padding: "10px", borderRadius: 8, border: "none", background: runningMoss ? "#1a1a1a" : "linear-gradient(135deg,#7c3aed,#4f46e5)", color: "#fff", fontWeight: 700, fontSize: 13, cursor: runningMoss ? "not-allowed" : "pointer" }}>
               {runningMoss ? "Running..." : "Run MOSS Now"}
