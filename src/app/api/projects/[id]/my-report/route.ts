@@ -40,7 +40,14 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const myVersionId = mySubmission.versions[0].id;
 
-    // Get all submissions for this project to resolve user names
+    // Get current user's role
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+    const isAdmin = currentUser?.role === "admin";
+
+    // Get all submissions to resolve user names
     const allSubmissions = await prisma.submission.findMany({
       where: { projectId },
       include: {
@@ -49,7 +56,6 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       }
     });
 
-    // Build map: versionId -> user info
     const versionToUser: Record<string, { name: string; email: string }> = {};
     for (const sub of allSubmissions) {
       if (sub.versions[0]) {
@@ -57,7 +63,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       }
     }
 
-    const REVEAL_THRESHOLD = 50; // reveal name if match >= 50%
+    const REVEAL_THRESHOLD = 35; // reveal name if match >= 35% for students
 
     const myMatches = [];
     for (const match of latestRun.matches) {
@@ -69,26 +75,26 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       if (iAmA) {
         normalized = { ...match };
       } else {
-        // Flip so I am always side A
         normalized = {
           ...match,
           submissionVersionAId: match.submissionVersionBId,
           submissionVersionBId: match.submissionVersionAId,
           percentA: match.percentB,
           percentB: match.percentA,
-          segments: match.segments.map(s => ({ ...s, side: s.side === "A" ? "B" : "A" })),
+          segments: match.segments.map((s: any) => ({ ...s, side: s.side === "A" ? "B" : "A" })),
         };
       }
 
-      // Reveal other user's name if match is high enough
       const otherVersionId = normalized.submissionVersionBId;
       const otherUser = versionToUser[otherVersionId];
       const isHighMatch = normalized.percentA >= REVEAL_THRESHOLD;
 
-      normalized.revealedUser = isHighMatch && otherUser
+      // Admin always sees names, students see names only above threshold
+      normalized.revealedUser = (isAdmin || isHighMatch) && otherUser
         ? { name: otherUser.name, email: otherUser.email }
         : null;
       normalized.isHighMatch = isHighMatch;
+      normalized.isAdmin = isAdmin;
 
       myMatches.push(normalized);
     }
@@ -98,6 +104,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       ...latestRun,
       matches: myMatches,
       versions: [mySubmission.versions[0]],
+      isAdmin,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
