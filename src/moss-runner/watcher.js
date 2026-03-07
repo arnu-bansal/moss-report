@@ -7,12 +7,16 @@ const http = require("http");
 process.env.DATABASE_URL = process.env.DATABASE_URL || "postgres://e090abc9d5a5606d19ed67103590bcfe7537f3aeee775158608124218dcf93e0:sk_MXWjEBecCd0XpgUaKo9d2@db.prisma.io:5432/postgres?sslmode=require";
 const DB_URL = process.env.DATABASE_URL;
 
-// Tiny HTTP server so Render thinks this is a web service
+// Health check server - won't crash if port busy
 const PORT = process.env.PORT || 3001;
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   res.writeHead(200);
   res.end("MOSS watcher running");
-}).listen(PORT, () => {
+});
+server.on("error", (e) => {
+  console.log("Port " + PORT + " busy, running without health check server.");
+});
+server.listen(PORT, () => {
   console.log("Health check server on port", PORT);
 });
 
