@@ -3,6 +3,7 @@ const { PrismaClient } = require("@prisma/client");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
 
 const projectId = process.argv[2];
 const runId = process.argv[3];
@@ -12,10 +13,21 @@ if (!projectId || !runId) { console.error("Usage: node runner-by-runid.js <proje
 process.env.DATABASE_URL = process.env.DATABASE_URL || "postgres://e090abc9d5a5606d19ed67103590bcfe7537f3aeee775158608124218dcf93e0:sk_MXWjEBecCd0XpgUaKo9d2@db.prisma.io:5432/postgres?sslmode=require";
 
 function getDB() {
-  const { PrismaPg } = require("@prisma/adapter-pg");
-  const { PrismaClient } = require("@prisma/client");
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   return new PrismaClient({ adapter });
+}
+
+function fetchUrl(url) {
+  return new Promise((resolve, reject) => {
+    http.get(url, (res) => {
+      if (res.statusCode === 301 || res.statusCode === 302) {
+        return fetchUrl(res.headers.location).then(resolve).catch(reject);
+      }
+      let data = "";
+      res.on("data", c => data += c);
+      res.on("end", () => resolve(data));
+    }).on("error", reject);
+  });
 }
 
 async function main() {
@@ -37,96 +49,75 @@ async function main() {
   for (const sub of submissions) {
     const ver = sub.versions[0];
     if (!ver || !ver.code) continue;
-    const filename = ver.id + "." + lang;
-    const filepath = path.join(tmpDir, filename);
+    const filepath = path.join(tmpDir, ver.id + "." + lang);
     fs.writeFileSync(filepath, ver.code);
     files.push(filepath);
-    console.log("  Wrote:", filename);
+    console.log("  Wrote:", ver.id + "." + lang);
   }
 
   if (files.length < 2) {
-    console.log("Not enough submissions:", files.length);
-    await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: "Not enough submissions" } });
+    await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: "Not enough submissions: " + files.length } });
     await prisma.$disconnect();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
     return;
   }
 
   const mossScript = path.join(__dirname, "moss.pl");
-  const args = [mossScript, "-l", lang, ...files];
   console.log("  Running MOSS with", files.length, "files...");
 
   await new Promise((resolve) => {
     let output = "";
-    const proc = spawn("perl", args, { timeout: 300000 });
+    const proc = spawn("perl", [mossScript, "-l", lang, ...files]);
 
-    proc.stdout.on("data", (data) => {
-      output += data.toString();
-      process.stdout.write(data);
-    });
-
-    proc.stderr.on("data", (data) => {
-      process.stderr.write(data);
-    });
+    proc.stdout.on("data", (data) => { output += data.toString(); process.stdout.write(data); });
+    proc.stderr.on("data", (data) => { process.stderr.write(data); });
 
     proc.on("close", async (code) => {
-      console.log("\\nMOSS process exited with code:", code);
-      console.log("Full output:", JSON.stringify(output));
+      console.log("\nMOSS exited:", code);
 
-      const urlMatch = output.match(/http:\/\/moss\.stanford\.edu\/results\/\S+/);
+      const urlMatch = output.match(/http:\/\/moss\.stanford\.edu\/results\/[^\s]+/);
       if (!urlMatch) {
-        console.log("No MOSS URL found in output");
-        try { await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: "No URL returned: " + output.slice(0, 200) } }); } catch(e) { console.error(e.message); }
+        console.log("No URL found");
+        await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: "No URL: " + output.slice(0, 300) } });
         await prisma.$disconnect();
         fs.rmSync(tmpDir, { recursive: true, force: true });
         resolve();
         return;
       }
 
-      const mossUrl = urlMatch[0].trim();
+      let mossUrl = urlMatch[0].trim();
+      if (!mossUrl.endsWith("/")) mossUrl += "/";
       console.log("  MOSS URL:", mossUrl);
 
-      // Fetch and parse results
       try {
-        const http = require("http");
-        const html = await new Promise((res, rej) => {
-          http.get(mossUrl, (r) => {
-            let d = "";
-            r.on("data", c => d += c);
-            r.on("end", () => res(d));
-          }).on("error", rej);
-        });
+        const html = await fetchUrl(mossUrl);
+        console.log("  Fetched HTML, length:", html.length);
 
-        const matchRegex = /href="(http:\/\/moss\.stanford\.edu\/results\/[^"]+)">([^<]+)<\/a>[^<]*<\/td>\s*<td[^>]*>(\d+)%<\/td>\s*<td[^>]*>(\d+)%/g;
+        // Parse: <A HREF="matchURL">filepath (XX%)</A> ... <A ...>filepath (XX%)</A>
+        const matchRegex = /href="(http:\/\/moss\.stanford\.edu\/results\/[^"]+)">[^<]*?([^\\/]+)\s*\((\d+)%\)<\/A>\s*<TD><A[^>]+>[^<]*?([^\\/]+)\s*\((\d+)%\)/gi;
         let m;
         let matchCount = 0;
+
         while ((m = matchRegex.exec(html)) !== null) {
           const matchUrl = m[1];
-          const filesStr = m[2];
+          const fileA = m[2].trim().replace("." + lang, "");
+          const fileB = m[4].trim().replace("." + lang, "");
           const percentA = parseInt(m[3]);
-          const percentB = parseInt(m[4]);
+          const percentB = parseInt(m[5]);
+          console.log("  Match:", fileA, percentA + "%", "<->", fileB, percentB + "%");
 
-          const fileMatch = filesStr.match(/([^\s(]+)\s*\((\d+)%\)[^(]+\((\d+)%\)/);
-          if (!fileMatch) continue;
-
-          const fileA = path.basename(fileMatch[1]).replace("." + lang, "");
-          const fileB = path.basename(filesStr.split(" ").find(s => s.includes(".")) || "").replace("." + lang, "");
-
-          const versionA = fileA;
-          const versionB = fileB;
-
-          const existing = await prisma.mossMatch.findFirst({ where: { runId, submissionVersionAId: versionA, submissionVersionBId: versionB } });
-          if (existing) continue;
-
-          await prisma.mossMatch.create({
-            data: { runId, submissionVersionAId: versionA, submissionVersionBId: versionB, percentA, percentB, linesMatched: 0, matchUrl }
-          });
-          matchCount++;
+          try {
+            await prisma.mossMatch.create({
+              data: { submissionVersionAId: fileA, submissionVersionBId: fileB, percentA, percentB, mossMatchUrl: matchUrl, mossRun: { connect: { id: runId } } }
+            });
+            matchCount++;
+          } catch(e) { console.error("  Save error:", e.message); }
         }
 
-        await prisma.mossRun.update({ where: { id: runId }, data: { status: "COMPLETED", mossUrl, matchCount } });
-        console.log("Done! Saved", matchCount, "matches.");
+        await prisma.mossRun.update({ where: { id: runId }, data: { status: "COMPLETED" } });
+        console.log("Done! Saved", matchCount, "matches for run", runId);
       } catch(e) {
-        console.error("Parse error:", e.message);
+        console.error("Parse/fetch error:", e.message);
         await prisma.mossRun.update({ where: { id: runId }, data: { status: "FAILED", errorText: e.message } });
       }
 
@@ -144,7 +135,4 @@ async function main() {
   });
 }
 
-main().catch(async (e) => {
-  console.error("Fatal error:", e.message);
-  process.exit(1);
-});
+main().catch(e => { console.error("Fatal:", e.message); process.exit(1); });
