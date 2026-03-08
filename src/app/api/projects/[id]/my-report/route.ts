@@ -13,6 +13,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   try {
     const { id: projectId } = await context.params;
     const userId = req.nextUrl.searchParams.get("userId");
+    const adminView = req.nextUrl.searchParams.get("adminView") === "true";
     if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
     const prisma = getDB();
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     for (const match of latestRun.matches) {
       const iAmA = match.submissionVersionAId === myVersionId;
       const iAmB = match.submissionVersionBId === myVersionId;
-      if (!iAmA && !iAmB) continue;
+      if (!adminView && !iAmA && !iAmB) continue;
 
       let normalized: any;
       if (iAmA) {

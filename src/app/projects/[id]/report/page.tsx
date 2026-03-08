@@ -28,7 +28,7 @@ export default function ReportPage() {
     if (!projectId || !session) return;
     const userId = (session?.user as any)?.id;
     if (!userId) return;
-    fetch("/api/projects/" + projectId + "/my-report?userId=" + userId)
+    fetch("/api/projects/" + projectId + "/my-report?userId=" + userId + (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("adminView") === "true" ? "&adminView=true" : ""))
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
