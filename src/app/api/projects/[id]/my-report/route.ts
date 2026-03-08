@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     const latestRun = await prisma.mossRun.findFirst({
       where: { projectId, status: "COMPLETED" },
       orderBy: { createdAt: "desc" },
-      include: { matches: { include: { segments: true } } }
+      include: { matches: { include: { segments: true }, orderBy: { createdAt: "desc" } } }
     });
 
     if (!latestRun) {

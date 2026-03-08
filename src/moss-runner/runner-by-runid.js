@@ -105,7 +105,7 @@ async function main() {
           const fileB = m[4].trim().replace("." + lang, "");
           const percentA = parseInt(m[3]);
           const percentB = parseInt(m[5]);
-          console.log("  Match:", fileA, percentA + "%", "<->", fileB, percentB + "%");
+          await prisma.mossMatch.deleteMany({ where: { mossRunId: runId, submissionVersionAId: fileA, submissionVersionBId: fileB } }); console.log("  Match:", fileA, percentA + "%", "<->", fileB, percentB + "%");
 
           try {
             const mossMatch = await prisma.mossMatch.create({
