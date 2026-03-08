@@ -76,6 +76,6 @@ async function clearStaleRuns() {
 }
 
 console.log("[" + new Date().toLocaleTimeString() + "] Moss watcher started.");
-setInterval(processQueue, 5000);
+setInterval(processQueue, 2000);
 setInterval(clearStaleRuns, 60000);
 processQueue();

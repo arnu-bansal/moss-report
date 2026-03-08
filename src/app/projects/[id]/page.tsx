@@ -94,7 +94,7 @@ export default function ProjectPage() {
       } else if (latest?.status === "FAILED") {
         setMossStatus("MOSS run failed."); setRunningMoss(false); clearInterval(poll);
       }
-    }, 3000);
+    }, 1000);
   }
 
   if (!project) return (
