@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -157,7 +157,7 @@ export default function ReportPage() {
                       {m.revealedUser ? m.revealedUser.name : "User #" + m.submissionVersionBId.slice(0,8)}
                     </div>
                     {m.revealedUser && (
-                      <div style={{ fontSize: 11, color: "#ef4444", marginTop: 2 }}>High similarity — identity revealed</div>
+                      <div style={{ fontSize: 11, color: "#ef4444", marginTop: 2 }}>High similarity ï¿½ identity revealed</div>
                     )}
                   </div>
                   <div style={{ marginLeft: "auto", display: "flex", gap: 16, alignItems: "center" }}>
@@ -170,7 +170,7 @@ export default function ReportPage() {
                 </div>
                 {m.isHighMatch && (
                   <div style={{ padding: "8px 18px", background: "#1a0a0a", borderTop: "1px solid #ef444422", fontSize: 11, color: "#fca5a5" }}>
-                    Similarity above 35% — this match has been flagged and both students can see each other's names.
+                    Similarity above 35% ï¿½ this match has been flagged and both students can see each other's names.
                   </div>
                 )}
                 {expanded===m.id && (
