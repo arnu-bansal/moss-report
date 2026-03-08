@@ -26,11 +26,11 @@ export default function ReportPage() {
 
   useEffect(() => {
     if (!projectId || !session) return;
-    const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
-    const adminView = searchParams.get("adminView") === "true";
-    const userId = adminView ? searchParams.get("userId") : (session?.user as any)?.id;
+    const userId = (session?.user as any)?.id;
     if (!userId) return;
-    fetch("/api/projects/" + projectId + "/my-report?userId=" + userId + (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("adminView") === "true" ? "&adminView=true" : ""))
+    const sp = new URLSearchParams(window.location.search);
+    const adminView = sp.get("adminView") === "true";
+    fetch("/api/projects/" + projectId + "/my-report?userId=" + userId + (adminView ? "&adminView=true" : ""))
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
@@ -112,7 +112,7 @@ export default function ReportPage() {
         <div>
           {matches.length === 0 ? (
             <div style={{ background: "#0a0f0a", border: "1px solid #16a34a44", borderRadius: 12, padding: "24px", textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 28, marginBottom: 8, color: "#86efac" }}>?</div>
+              <div style={{ fontSize: 28, marginBottom: 8, color: "#86efac" }}>✓</div>
               <div style={{ fontSize: 14, color: "#86efac", fontWeight: 700, marginBottom: 4 }}>No matches found!</div>
               <div style={{ fontSize: 12, color: "#4a7c59" }}>Your code appears original.</div>
             </div>
@@ -159,7 +159,7 @@ export default function ReportPage() {
                       {m.revealedUser ? m.revealedUser.name : "User #" + m.submissionVersionBId.slice(0,8)}
                     </div>
                     {m.revealedUser && (
-                      <div style={{ fontSize: 11, color: "#ef4444", marginTop: 2 }}>High similarity � identity revealed</div>
+                      <div style={{ fontSize: 11, color: "#ef4444", marginTop: 2 }}>High similarity — identity revealed</div>
                     )}
                   </div>
                   <div style={{ marginLeft: "auto", display: "flex", gap: 16, alignItems: "center" }}>
@@ -172,7 +172,7 @@ export default function ReportPage() {
                 </div>
                 {m.isHighMatch && (
                   <div style={{ padding: "8px 18px", background: "#1a0a0a", borderTop: "1px solid #ef444422", fontSize: 11, color: "#fca5a5" }}>
-                    Similarity above 35% � this match has been flagged and both students can see each other's names.
+                    Similarity above 35% — this match has been flagged and both students can see each other's names.
                   </div>
                 )}
                 {expanded===m.id && (
