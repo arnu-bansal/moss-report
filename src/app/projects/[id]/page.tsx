@@ -84,7 +84,7 @@ export default function ProjectPage() {
     });
     const d = await res.json();
     if (d.error) { setMossStatus("Error: " + d.error); setRunningMoss(false); return; }
-    setMossStatus("MOSS is running... results appear in ~30 seconds.");
+    setMossStatus("MOSS is running... results appear in 1-2 minutes.");
     const poll = setInterval(async () => {
       const r = await fetch("/api/projects/" + projectId + "/runs");
       const rd = await r.json();
