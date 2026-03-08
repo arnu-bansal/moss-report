@@ -26,7 +26,9 @@ export default function ReportPage() {
 
   useEffect(() => {
     if (!projectId || !session) return;
-    const userId = (session?.user as any)?.id;
+    const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    const adminView = searchParams.get("adminView") === "true";
+    const userId = adminView ? searchParams.get("userId") : (session?.user as any)?.id;
     if (!userId) return;
     fetch("/api/projects/" + projectId + "/my-report?userId=" + userId + (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("adminView") === "true" ? "&adminView=true" : ""))
       .then(r => r.json())

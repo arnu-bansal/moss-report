@@ -115,7 +115,7 @@ export default function AdminPage() {
             <div style={{ background: "#0f0f0f", border: "1px solid #1e1e1e", borderRadius: 12, padding: "20px 24px" }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: "#f5f5f5", marginBottom: 16 }}>Recent MOSS Runs</div>
               {runs.slice(0, 8).map((r: any) => (
-                <div key={r.id} onClick={() => router.push("/projects/" + r.projectId + "/report?adminView=true")}
+                <div key={r.id} onClick={() => router.push("/projects/" + r.projectId + "/report?adminView=true&userId=" + (r.triggeredBy || "") + (r.triggeredBy || ""))}
                   style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #1a1a1a", cursor: "pointer" }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, color: "#d4d4d4", fontWeight: 600 }}>{r.project?.name || "Unknown"}</div>
@@ -298,7 +298,7 @@ export default function AdminPage() {
                     <td style={{ padding: "14px 20px", fontSize: 12, color: "#52525b" }}>{new Date(r.createdAt).toLocaleString()}</td>
                     <td style={{ padding: "14px 20px" }}>
                       {r.status === "COMPLETED" && (
-                        <button onClick={() => router.push("/projects/" + r.projectId + "/report?adminView=true")}
+                        <button onClick={() => router.push("/projects/" + r.projectId + "/report?adminView=true&userId=" + (r.triggeredBy || "") + (r.triggeredBy || ""))}
                           style={{ fontSize: 11, padding: "4px 12px", borderRadius: 6, border: "1px solid #ef444444", background: "transparent", color: "#fca5a5", cursor: "pointer" }}>Report</button>
                       )}
                     </td>
