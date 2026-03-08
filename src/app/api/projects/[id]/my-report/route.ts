@@ -94,7 +94,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       const isHighMatch = normalized.percentA >= REVEAL_THRESHOLD;
 
       // Always reveal AI model names, admin sees all, students see above threshold
-      normalized.revealedUser = (isAdmin || isHighMatch || isAiMatch) && otherUser
+      normalized.revealedUser = (isAdmin || isHighMatch || isAiMatch || adminView) && otherUser
         ? { name: otherUser.name, email: otherUser.email, role: otherUser.role }
         : null;
       normalized.isHighMatch = isHighMatch;
