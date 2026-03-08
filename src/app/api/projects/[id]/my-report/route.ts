@@ -45,7 +45,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       where: { id: userId },
       select: { role: true }
     });
-    const isAdmin = currentUser?.role === "admin";
+    const isAdmin = currentUser?.role === "admin" || adminView;
 
     const allSubmissions = await prisma.submission.findMany({
       where: { projectId },
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     for (const match of latestRun.matches) {
       const iAmA = match.submissionVersionAId === myVersionId;
       const iAmB = match.submissionVersionBId === myVersionId;
-      if (!adminView && !iAmA && !iAmB) continue;
+      if (!iAmA && !iAmB) continue;
 
       let normalized: any;
       if (iAmA) {
@@ -93,8 +93,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       const isAiMatch = otherUser?.role === "ai";
       const isHighMatch = normalized.percentA >= REVEAL_THRESHOLD;
 
-      // Always reveal AI model names, admin sees all, students see above threshold
-      normalized.revealedUser = (isAdmin || isHighMatch || isAiMatch || adminView) && otherUser
+      normalized.revealedUser = (isAdmin || isHighMatch || isAiMatch) && otherUser
         ? { name: otherUser.name, email: otherUser.email, role: otherUser.role }
         : null;
       normalized.isHighMatch = isHighMatch;
@@ -104,10 +103,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       myMatches.push(normalized);
     }
 
+    // Filter out matches below 10% and sort descending
+    const finalMatches = myMatches
+      .filter((m: any) => m.percentA >= 10)
+      .sort((a: any, b: any) => b.percentA - a.percentA);
+
     await prisma.$disconnect();
     return NextResponse.json({
       ...latestRun,
-      matches: myMatches,
+      matches: finalMatches,
       versions: [mySubmission.versions[0]],
       isAdmin,
     });
