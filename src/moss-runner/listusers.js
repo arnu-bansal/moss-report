@@ -2,8 +2,8 @@
 const client = new Client({ connectionString: process.env.DATABASE_URL });
 async function main() {
   await client.connect();
-  await client.query('UPDATE "User" SET role = \'admin\' WHERE email = \'arnavbansal2007@gmail.com\'');
-  console.log("Done! Arnav is now admin.");
+  const res = await client.query('SELECT id, name, email, role FROM "User" ORDER BY "createdAt"');
+  console.log(JSON.stringify(res.rows, null, 2));
   await client.end();
 }
 main().catch(e => console.error(e.message));
